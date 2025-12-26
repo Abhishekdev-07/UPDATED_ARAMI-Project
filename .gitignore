@@ -1,0 +1,18 @@
+# Ignore the virtual environment
+venv/
+env/
+.env
+
+# Ignore the heavy model folders
+final_model/
+final_arami_model/
+arami_results/
+arami_results_v2/
+
+# Ignore Python cache files
+__pycache__/
+*.pyc
+
+# Ignore large datasets
+*.jsonl
+*.txt
