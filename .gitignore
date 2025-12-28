@@ -16,3 +16,9 @@ __pycache__/
 # Ignore large datasets
 *.jsonl
 *.txt
+
+V2_New_ARAMI/
+V3_New_ARAMI/
+*.safetensors
+*.bin
+
