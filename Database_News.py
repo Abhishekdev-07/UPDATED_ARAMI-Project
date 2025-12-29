@@ -1,135 +1,104 @@
-import json
-import os
 import requests
-import feedparser
-from newspaper import Article
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 import torch
-import time
 
-# --- CONFIGURATION ---
-DB_FILE = "news_db.json"
+# --- AI MODEL LOADING ---
 MODEL_NAME = "facebook/bart-large-cnn"
+print(f"IVORY Engine: Loading AI Model ({MODEL_NAME})...")
+try:
+    # Use CPU for maximum compatibility
+    DEVICE = "cpu"
+    TOKENIZER = AutoTokenizer.from_pretrained(MODEL_NAME)
+    MODEL = AutoModelForSeq2SeqLM.from_pretrained(MODEL_NAME).to(DEVICE)
+    MODEL.eval()
+    print(f"✅ AI Model Loaded on {DEVICE.upper()}.")
+except Exception as e:
+    print(f"❌ FATAL MODEL ERROR: {e}")
+    TOKENIZER, MODEL, DEVICE = None, None, None
 
-class NewsEngine:
-    def __init__(self):
-        print("🔧 Initializing News Engine...")
-        self.load_model()
-        self.db = self.load_db()
-
-    def load_model(self):
-        print(f"Loading AI Model ({MODEL_NAME})...")
-        try:
-            self.tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
-            self.model = AutoModelForSeq2SeqLM.from_pretrained(MODEL_NAME)
-            self.model.eval()
-            print("✅ AI Model Loaded.")
-        except Exception as e:
-            print(f"❌ Model Error: {e}")
-
-    def load_db(self):
-        if os.path.exists(DB_FILE):
-            with open(DB_FILE, 'r') as f:
-                return json.load(f)
-        return {"articles": []}
-
-    def save_db(self):
-        with open(DB_FILE, 'w') as f:
-            json.dump(self.db, f, indent=4)
-        print("💾 Database Saved.")
-
-    # --- 1. THE ROBUST SCRAPER (Jina + Fallback) ---
-    def scrape_article(self, url):
-        print(f"   🔎 Scraping: {url[:50]}...")
-        
-        # STRATEGY A: Try Jina API (Fastest/Cleanest)
-        try:
-            jina_url = f"https://r.jina.ai/{url}"
-            response = requests.get(jina_url, timeout=10)
-            if response.status_code == 200 and len(response.text) > 500:
-                return response.text[:4000] # Success!
-        except:
-            print("      ⚠️ Jina failed. Trying Backup...")
-
-        # STRATEGY B: Newspaper3k (The Backup)
-        try:
-            headers = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)'}
-            # We fetch HTML manually to avoid blocking
-            html = requests.get(url, headers=headers, timeout=10).content
-            article = Article(url)
-            article.download(input_html=html)
-            article.parse()
-            if len(article.text) > 200:
-                return f"Title: {article.title}\n{article.text}"[:4000]
-        except Exception as e:
-            print(f"      ❌ Backup Scraper failed: {e}")
-        
-        return None
-
-    # --- 2. SUMMARIZER ---
-    def summarize_text(self, text):
-        inputs = self.tokenizer(text, return_tensors="pt", max_length=1024, truncation=True)
+def summarize_text(text):
+    """Summarizes text safely."""
+    if not MODEL or not text or len(text) < 50:
+        return text[:200] + "..." 
+    
+    clean_text = " ".join(text.split())[:3000] 
+    
+    try:
+        inputs = TOKENIZER(clean_text, return_tensors="pt", max_length=1024, truncation=True).to(DEVICE)
         with torch.no_grad():
-            summary_ids = self.model.generate(
-                inputs["input_ids"],
-                max_length=160,
-                min_length=50,
-                length_penalty=2.0,
-                num_beams=4,
+            summary_ids = MODEL.generate(
+                inputs["input_ids"], 
+                max_length=130, 
+                min_length=30, 
+                length_penalty=2.0, 
+                num_beams=4, 
                 early_stopping=True
             )
-        return self.tokenizer.decode(summary_ids[0], skip_special_tokens=True)
+        return TOKENIZER.decode(summary_ids[0], skip_special_tokens=True)
+    except Exception as e:
+        print(f"   ⚠️ AI Summary Failed: {e}")
+        return clean_text[:200] + "..."
 
-    # --- 3. THE MANAGER (Refreshes the DB) ---
-    def refresh_feed(self, topic="Technology"):
-        print(f"\n🔄 Refreshing News Feed for: {topic}")
-        rss_url = f"https://news.google.com/rss/search?q={topic}&hl=en-US&gl=US&ceid=US:en"
+# --- NEW LOC.GOV API FUNCTION ---
+def search_chronicling_america(query, page=1):
+    print(f"🔎 Searching LOC.GOV (New API) for: '{query}'")
+    
+    # 1. NEW ENDPOINT: The new home for the API
+    base_url = "https://www.loc.gov/collections/chronicling-america/"
+    
+    params = {
+        "q": query,
+        "fo": "json",           # 'fo' = format (must be json)
+        "fa": "original_format:newspaper", # Filter for newspapers
+        "sp": page,             # Page number
+        "c": 5                  # Count (limit results)
+    }
+
+    try:
+        # 2. NO API KEY NEEDED - Just be polite with User-Agent
+        headers = {'User-Agent': 'IvoryArchive/1.0 (Educational Use)'}
         
-        # Fetch RSS with User-Agent
-        headers = {'User-Agent': 'Mozilla/5.0'}
-        response = requests.get(rss_url, headers=headers)
-        feed = feedparser.parse(response.content)
+        response = requests.get(base_url, params=params, headers=headers, timeout=20)
+        response.raise_for_status() 
+        data = response.json()
+    except Exception as e:
+        print(f"❌ API Connection Error: {e}")
+        return []
 
-        new_articles = []
-        
-        # Process Top 5 Articles ONLY (To save time for now)
-        for entry in feed.entries[:5]:
-            # Check if we already have this article in DB (by link)
-            existing = next((a for a in self.db['articles'] if a['link'] == entry.link), None)
+    results = data.get('results', [])
+    print(f"   ✅ Found {len(results)} items.")
+
+    processed_articles = []
+    
+    for item in results:
+        try:
+            # 3. PARSE DATA
+            title = item.get('title', 'Untitled Record')
+            date = item.get('date', 'Unknown Date')
             
-            if existing and "summary" in existing:
-                print(f"   ✅ Already in DB: {entry.title[:30]}...")
-                new_articles.append(existing)
-                continue
-
-            # It's new! Let's process it.
-            print(f"   ✨ Processing New: {entry.title[:30]}...")
+            # 4. GET TEXT (from description field in new API)
+            description_list = item.get('description', [])
+            full_text = " ".join(description_list) if description_list else ""
             
-            # Scrape & Summarize
-            full_text = self.scrape_article(entry.link)
+            if len(full_text) < 50:
+                full_text = f"{title}. {full_text}"
+
+            # 5. SUMMARIZE
+            summary = summarize_text(full_text)
+
+            # 6. LINK
+            link = item.get('id') or item.get('url')
+
+            processed_articles.append({
+                "title": title,
+                "link": link,
+                "source": "Library of Congress Archive",
+                "date": date,
+                "summary": summary
+            })
             
-            if full_text:
-                summary = self.summarize_text(full_text)
-            else:
-                summary = "Could not read article automatically. Tap 'Read More' to view."
+        except Exception as e:
+            print(f"   ⚠️ Error parsing item: {e}")
+            continue
 
-            # Get Image
-            image = entry.media_content[0]['url'] if 'media_content' in entry else None
-
-            article_data = {
-                "title": entry.title,
-                "link": entry.link,
-                "source": entry.source.title,
-                "date": entry.published,
-                "image": image,
-                "summary": summary  # Saved FOREVER!
-            }
-            new_articles.append(article_data)
-
-        # Update DB
-        self.db['articles'] = new_articles
-        self.save_db()
-        return new_articles
-
-# Helper for app.py to import
-engine = NewsEngine()
+    return processed_articles
