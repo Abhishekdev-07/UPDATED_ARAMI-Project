@@ -21,4 +21,4 @@ V2_New_ARAMI/
 V3_New_ARAMI/
 *.safetensors
 *.bin
-
+.DS_Store
