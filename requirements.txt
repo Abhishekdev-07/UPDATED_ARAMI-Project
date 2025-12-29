@@ -1,0 +1,9 @@
+flask
+transformers
+torch
+requests
+feedparser
+beautifulsoup4
+datasets
+internetarchive
+# Add other dependencies if needed
