@@ -3,258 +3,166 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ARAMI - News Reels</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;700&display=swap" rel="stylesheet">
+    <title>IVORY - Historical News Reels</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400..700;1,400..700&family=Roboto+Slab:wght@300;400;700&display=swap" rel="stylesheet">
     <style>
-        /* --- RESET & BASE --- */
-        body { 
-            margin: 0; 
-            background: #000; 
-            color: white; 
-            font-family: 'Inter', sans-serif; 
-            overflow: hidden; /* Hide main scrollbar */
+        :root {
+            --background-color: #fdf6e3;
+            --text-color: #584b3d;
+            --header-font: 'Roboto Slab', serif;
+            --body-font: 'Lora', serif;
+            --accent-color: #a58d71;
         }
+        body { margin: 0; background-color: var(--background-color); color: var(--text-color); font-family: var(--body-font); overflow: hidden; }
+        h1, h2, h3 { font-family: var(--header-font); font-weight: 700; }
 
-        /* --- THE INFINITE FEED CONTAINER --- */
-        #feed-container {
-            height: 100vh;
-            width: 100vw;
-            overflow-y: scroll;
-            scroll-snap-type: y mandatory; /* TIKTOK MAGIC: Forces snap to card */
-            scroll-behavior: smooth;
-        }
+        .view { height: 100vh; width: 100vw; position: absolute; top: 0; left: 0; transition: opacity 0.5s ease-in-out, visibility 0.5s; }
+        .view.hidden { opacity: 0; visibility: hidden; pointer-events: none; }
 
-        /* --- NEWS CARD --- */
-        .news-card {
-            height: 100vh;
-            width: 100vw;
-            scroll-snap-align: start;
-            position: relative;
-            display: flex;
-            flex-direction: column;
-            justify-content: flex-end; /* Text at bottom */
-            padding: 30px;
-            box-sizing: border-box;
-            background: #111;
-            background-size: cover;
-            background-position: center;
-        }
+        #home-view { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 20px; box-sizing: border-box; }
+        #home-view h1 { font-size: 5.5vw; margin: 0; color: #4a3f32; }
+        #home-view .tagline { font-size: 1.2vw; margin-bottom: 40px; color: var(--accent-color); }
+        #search-box { display: flex; border: 1px solid var(--accent-color); border-radius: 50px; padding: 5px; width: clamp(300px, 50vw, 600px); background: #fff; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
+        #search-box input { flex-grow: 1; border: none; background: transparent; outline: none; font-family: var(--body-font); font-size: 16px; padding: 10px; color: var(--text-color); }
+        #search-box button { background: var(--text-color); color: var(--background-color); border: none; border-radius: 50%; width: 40px; height: 40px; font-size: 20px; cursor: pointer; transition: transform 0.2s; }
+        #search-box button:hover { transform: scale(1.1); }
+        .instructions { margin-top: 20px; color: #aaa; }
 
-        /* Dark Overlay so text is readable */
-        .overlay {
-            position: absolute; top:0; left:0; right:0; bottom:0;
-            background: linear-gradient(0deg, rgba(0,0,0,1) 10%, rgba(0,0,0,0.4) 50%, rgba(0,0,0,0.1) 100%);
-            z-index: 1;
-        }
+        #feed-container { height: 100vh; width: 100vw; overflow-y: scroll; scroll-snap-type: y mandatory; scroll-behavior: smooth; }
+        .news-card { height: 100vh; width: 100vw; scroll-snap-align: start; position: relative; display: flex; flex-direction: column; justify-content: center; padding: 40px; box-sizing: border-box; border-bottom: 1px dashed var(--accent-color); }
+        .card-content { max-width: 800px; margin: 0 auto; }
+        .card-content h1 { font-size: 36px; line-height: 1.2; margin-bottom: 10px; }
+        .meta { font-family: var(--header-font); font-size: 14px; color: var(--accent-color); margin-bottom: 20px; text-transform: uppercase; }
+        .summary-box { border-left: 3px solid var(--accent-color); padding: 5px 20px; margin-top: 20px; }
+        .summary-text { font-size: 17px; line-height: 1.7; font-style: italic; }
+        .btn-read-more { display: inline-block; margin-top: 20px; color: var(--accent-color); text-decoration: none; font-weight: bold; }
+        .loader { text-align: center; font-family: var(--header-font); color: var(--accent-color); }
 
-        /* --- CARD CONTENT --- */
-        .content {
-            position: relative;
-            z-index: 2;
-            margin-bottom: 50px;
-            max-width: 800px;
-            margin-left: auto; margin-right: auto;
-        }
-
-        h1 { 
-            font-size: 32px; 
-            line-height: 1.2; 
-            margin-bottom: 10px; 
-            text-shadow: 0 2px 10px rgba(0,0,0,0.5);
-        }
-        
-        .meta { 
-            font-size: 14px; 
-            color: #bbb; 
-            margin-bottom: 20px; 
-            text-transform: uppercase; 
-            letter-spacing: 1px;
-            font-weight: 700;
-        }
-
-        /* --- GLASS SUMMARY BOX --- */
-        .summary-box {
-            background: rgba(255, 255, 255, 0.1);
-            backdrop-filter: blur(15px);
-            -webkit-backdrop-filter: blur(15px);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            border-radius: 20px;
-            padding: 20px;
-            min-height: 100px;
-            margin-top: 20px;
-            transition: all 0.3s ease;
-        }
-
-        .summary-text {
-            font-size: 16px;
-            line-height: 1.6;
-            color: #eee;
-        }
-
-        /* --- BUTTONS --- */
-        .btn-summarize {
-            background: #2563eb;
-            color: white;
-            border: none;
-            padding: 12px 24px;
-            border-radius: 30px;
-            font-weight: bold;
-            font-size: 16px;
-            cursor: pointer;
-            width: 100%;
-            transition: transform 0.1s;
-        }
-        .btn-summarize:active { transform: scale(0.98); }
-
-        .btn-read-more {
-            display: block;
-            text-align: center;
-            margin-top: 15px;
-            color: #888;
-            text-decoration: none;
-            font-size: 12px;
-        }
-
-        /* --- SEARCH BAR FLOATING --- */
-        #top-bar {
-            position: fixed;
-            top: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            z-index: 100;
-            display: flex;
-            gap: 10px;
-            background: rgba(0,0,0,0.6);
-            padding: 10px;
-            border-radius: 50px;
-            backdrop-filter: blur(10px);
-        }
-        input { 
-            background: transparent; border: none; color: white; 
-            padding: 5px 10px; outline: none; width: 150px; text-align: center;
-        }
-        .btn-go {
-            background: white; color: black; border: none;
-            border-radius: 50%; width: 30px; height: 30px;
-            font-weight: bold; cursor: pointer;
-        }
-
-        /* --- LOADING ANIMATION --- */
-        .loader {
-            display: inline-block;
-            width: 20px; height: 20px;
-            border: 3px solid rgba(255,255,255,0.3);
-            border-radius: 50%;
-            border-top-color: #fff;
-            animation: spin 1s ease-in-out infinite;
-            margin-right: 10px;
-        }
-        @keyframes spin { to { transform: rotate(360deg); } }
-
+        #top-left-nav { position: fixed; top: 20px; left: 20px; z-index: 100; cursor: pointer; font-family: var(--header-font); font-weight: bold; background: rgba(253, 246, 227, 0.7); padding: 5px 10px; border-radius: 10px; backdrop-filter: blur(5px); }
+        #top-left-nav.hidden { display: none; }
     </style>
 </head>
 <body>
 
-    <div id="top-bar">
-        <input type="text" id="topicInput" placeholder="Topic (e.g. AI, Space)" value="Technology">
-        <button class="btn-go" onclick="loadFeed()">→</button>
+    <div id="top-left-nav" class="hidden" onclick="showView('home-view')">
+        ‹ Back to Search
     </div>
 
-    <div id="feed-container">
-        <div class="news-card" style="background: #111;">
-            <div class="content" style="text-align: center;">
-                <h1>ARAMI NEWS</h1>
-                <p class="meta">Powered by BART-Large AI</p>
-                <div class="summary-box" style="background: transparent; border: none;">
-                    Swipe Up or Enter a Topic to Start ⬇️
-                </div>
-            </div>
+    <div id="home-view" class="view">
+        <h1>IVORY</h1>
+        <p class="tagline">An AI-powered journey through historical news archives.</p>
+        <div id="search-box">
+            <input type="text" id="searchInput" placeholder="Search for a topic (e.g., aviation, suffrage)..." onkeyup="searchOnEnter(event)">
+            <button onclick="startSearch()">→</button>
         </div>
+        <p id="home-instructions" class="instructions">Press '→' to explore general history or enter a topic.</p>
+    </div>
+
+    <div id="feed-view" class="view hidden">
+        <div id="feed-container"></div>
     </div>
 
     <script>
-        async function loadFeed() {
-            const topic = document.getElementById('topicInput').value;
-            const container = document.getElementById('feed-container');
-            
-            // Show loading state (optional)
-            // fetch data...
-            const response = await fetch('/get_feed', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({topic: topic})
-            });
-            const data = await response.json();
-            
-            // Clear current cards (except the first welcome one if you want, or clear all)
-            container.innerHTML = ""; 
+        const homeView = document.getElementById('home-view');
+        const feedView = document.getElementById('feed-view');
+        const nav = document.getElementById('top-left-nav');
+        const container = document.getElementById('feed-container');
 
-            // Create Colors for cards without images
-            const gradients = [
-                "linear-gradient(45deg, #FF9A9E 0%, #FECFEF 99%, #FECFEF 100%)",
-                "linear-gradient(120deg, #84fab0 0%, #8fd3f4 100%)",
-                "linear-gradient(120deg, #a18cd1 0%, #fbc2eb 100%)",
-                "linear-gradient(to top, #30cfd0 0%, #330867 100%)"
-            ];
+        let currentPage = 1;
+        let currentQuery = 'history';
+        let isLoading = false;
 
-            data.articles.forEach((article, index) => {
+        function showView(viewId) {
+            if (viewId === 'home-view') {
+                homeView.classList.remove('hidden');
+                feedView.classList.add('hidden');
+                nav.classList.add('hidden');
+            } else {
+                homeView.classList.add('hidden');
+                feedView.classList.remove('hidden');
+                nav.classList.remove('hidden');
+            }
+        }
+
+        function renderArticles(articles, append = false) {
+            if (!append) {
+                container.innerHTML = "";
+            }
+
+            if (articles.length === 0 && !append) {
+                container.innerHTML = `<div class="news-card" style="justify-content:center; text-align:center;"><div class="card-content"><h1>No Results</h1><p>No articles found for your query. Try a different search term.</p></div></div>`;
+                return;
+            }
+
+            articles.forEach(article => {
                 const card = document.createElement('div');
                 card.className = 'news-card';
-                
-                // Set Background (Image or Gradient)
-                if(article.image) {
-                    card.style.backgroundImage = `url('${article.image}')`;
-                } else {
-                    const randomGrad = gradients[index % gradients.length];
-                    card.style.background = randomGrad;
-                }
-
                 card.innerHTML = `
-                    <div class="overlay"></div>
-                    <div class="content">
-                        <p class="meta">${article.source} • ${new Date(article.date).toLocaleDateString()}</p>
+                    <div class="card-content">
+                        <p class="meta">
+                            ${article.source || 'Unknown Source'} • 
+                            ${article.date || 'Unknown Date'}
+                        </p>
                         <h1>${article.title}</h1>
-                        
-                        <div class="summary-box" id="box-${index}">
-                            <button class="btn-summarize" onclick="summarizeArticle('${article.link}', ${index})">
-                                ✨ Summarize with AI
-                            </button>
+                        <div class="summary-box">
+                            <p class="summary-text">
+                                ${article.summary}
+                            </p>
                         </div>
-                        
-                        <a href="${article.link}" target="_blank" class="btn-read-more">Read Original Article</a>
+                        ${article.link ? `<a href="${article.link}" target="_blank" class="btn-read-more">View Original Page ›</a>` : ''}
                     </div>
                 `;
                 container.appendChild(card);
             });
         }
 
-        async function summarizeArticle(url, index) {
-            const box = document.getElementById(`box-${index}`);
-            
-            // UI: Loading State
-            box.innerHTML = `<div style="display:flex; align-items:center; justify-content:center; height:50px; color:#aaa;">
-                                <div class="loader"></div> Reading article...
-                             </div>`;
-            
+        async function fetchAndRender(query, page, append = false) {
+            if (isLoading) return;
+            isLoading = true;
+            if (!append) {
+                 container.innerHTML = `<div class="news-card loader" style="justify-content:center;"><h2>Searching archives for '${query}'...</h2></div>`;
+            }
+
             try {
-                const response = await fetch('/summarize', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({url: url})
-                });
-                const data = await response.json();
+                const response = await fetch(`/search?q=${encodeURIComponent(query)}&page=${page}`);
+                const articles = await response.json();
+                if (articles.error) throw new Error(articles.error);
                 
-                // UI: Show Result
-                // We use a simple fade-in effect via HTML replacement
-                box.innerHTML = `<p class="summary-text">${data.summary}</p>`;
-                
+                renderArticles(articles, append);
+                currentPage = page;
+
             } catch (e) {
-                box.innerHTML = `<p style="color: #ff6b6b;">Error: Could not read article. Try another one.</p>`;
+                container.innerHTML = `<div class="news-card" style="justify-content:center; text-align:center;"><div class="card-content"><h1>Error</h1><p>Could not fetch data from the server: ${e.message}</p></div></div>`;
+            } finally {
+                isLoading = false;
             }
         }
 
-        // Load default topic on startup
-        window.onload = loadFeed;
+        function startSearch() {
+            const query = document.getElementById('searchInput').value.trim();
+            currentQuery = query || 'history'; // Default search if empty
+            currentPage = 1;
+            fetchAndRender(currentQuery, currentPage, false);
+            showView('feed-view');
+        }
+
+        function searchOnEnter(event) {
+            if (event.key === 'Enter') {
+                startSearch();
+            }
+        }
+
+        // --- Infinite Scroll ---
+        container.addEventListener('scroll', () => {
+            const { scrollTop, scrollHeight, clientHeight } = container;
+            // Fetch next page when user is 90% of the way to the bottom
+            if (scrollTop + clientHeight >= scrollHeight * 0.9 && !isLoading) {
+                fetchAndRender(currentQuery, currentPage + 1, true);
+            }
+        });
+
     </script>
 </body>
 </html>
