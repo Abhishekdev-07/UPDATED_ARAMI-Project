@@ -16,7 +16,3 @@ Language: Python
 Summarization Engine: Hugging Face Transformers (BART-large-cnn)
 
 API: Chronicling America API (Library of Congress)
-
-Database: Cached JSON/SQLite architecture for efficient headline management.
-
-Environment: Developed on Pop!_OS using VS Code.
